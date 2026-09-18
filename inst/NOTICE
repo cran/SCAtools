@@ -1,0 +1,16 @@
+SCAtools 0.1.0
+
+This package provides a sufficiency-oriented interface to the NCA R package.
+It calls NCA as an imported dependency and does not rename NCA output as new
+statistical estimators. NCA 5.0.2 is authored by Jan Dul and Govert Buijs and is
+distributed under the GNU General Public License version 3 or later.
+
+The corner mapping used by SCAtools is:
+  HH sufficiency -> physical corner 4
+  LH sufficiency -> physical corner 3
+  HL sufficiency -> physical corner 2
+  LL sufficiency -> physical corner 1
+
+SCAtools is distributed under the GNU General Public License version 3 or
+later. See https://www.gnu.org/licenses/gpl-3.0.html.
+

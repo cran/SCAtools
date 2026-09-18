@@ -1,0 +1,25 @@
+citHeader(
+  "SCAtools uses the NCA computational engine. Please cite SCAtools and the underlying NCA method."
+)
+
+# The version is read from DESCRIPTION so that this file cannot fall behind the
+# package again, as it did between 0.1.0 and 0.4.3.
+bibentry(
+  bibtype = "Manual",
+  title   = "SCAtools: Direction-Aware Sufficiency Condition Analysis",
+  author  = person("Young", "Chan"),
+  year    = "2026",
+  note    = paste("R package version", meta$Version)
+)
+
+bibentry(
+  bibtype = "Article",
+  title = "Necessary Condition Analysis (NCA): Logic and Methodology of 'Necessary but Not Sufficient' Causality",
+  author = person("Jan", "Dul"),
+  journal = "Organizational Research Methods",
+  year = "2016",
+  volume = "19",
+  number = "1",
+  pages = "10--52",
+  doi = "10.1177/1094428115584005"
+)

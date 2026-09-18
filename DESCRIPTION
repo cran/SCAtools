@@ -1,0 +1,38 @@
+Package: SCAtools
+Type: Package
+Title: Direction-Aware Sufficiency Condition Analysis
+Version: 0.4.3
+Date: 2026-09-10
+Authors@R: c(
+    person("Young", "Chan", email = "youngchanresearcher@gmail.com",
+           role = c("aut", "cre"))
+    )
+Description: Provides a direction-aware interface for analysing bivariate
+    sufficiency statements from empty-space frontier patterns. Logical
+    sufficiency directions (high or low levels of a condition and outcome) are
+    kept separate from the physical location of the empty corner in the
+    scatter plot. Computation is delegated to version 5 of the 'NCA' package
+    based on Dul (2016) <doi:10.1177/1094428115584005>, using the
+    contraposition between necessity and sufficiency. Threshold tables are
+    computed in actual units and converted by this package, so percentage,
+    percentile and standard-deviation scales follow one stated reporting
+    convention in every sufficiency direction. Includes tidy summaries,
+    threshold rules, plots, random-data generation, permutation tests, and
+    power analysis. An ordinary least-squares line can be drawn beside the
+    frontier as a central-tendency reference; it is an average-effect summary
+    and never a component of a sufficiency claim. An empty-space pattern alone
+    does not establish causality or deterministic sufficiency.
+License: GPL (>= 3)
+Encoding: UTF-8
+Depends: R (>= 3.5.0)
+Imports: ggplot2 (>= 3.4.0), NCA (>= 5.0.2), stats, utils
+Suggests: testthat (>= 3.0.0)
+Config/testthat/edition: 3
+URL: https://github.com/youngchanresearcher/SCAtools
+BugReports: https://github.com/youngchanresearcher/SCAtools/issues
+NeedsCompilation: no
+Packaged: 2026-09-10 14:17:41 UTC; furfa
+Author: Young Chan [aut, cre]
+Maintainer: Young Chan <youngchanresearcher@gmail.com>
+Repository: CRAN
+Date/Publication: 2026-09-18 11:40:11 UTC
