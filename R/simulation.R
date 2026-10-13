@@ -11,6 +11,10 @@
 #' @param sd.x,sd.y Standard deviations for truncated normal distributions.
 #' @return A data frame with X condition columns and one Y outcome column.
 #' @export
+#' @examples
+#' set.seed(42)
+#' dat <- sca_random(50, intercepts = 0, slopes = 1, direction = "HH")
+#' head(dat)
 sca_random <- function(
     n,
     intercepts,
@@ -52,7 +56,7 @@ sca_random <- function(
 # behaving alike and names the direction that caused it.
 .sca_check_slope <- function(slope, direction, corner) {
   values <- suppressWarnings(as.numeric(slope))
-  if (length(values) == 0L || anyNA(values)) {
+  if (length(values) == 0L || !all(is.finite(values))) {
     stop("'slope' must be one or more finite numbers.", call. = FALSE)
   }
   falling <- corner %in% c(2L, 3L)
@@ -94,8 +98,19 @@ sca_random <- function(
 #' @param distribution.x,distribution.y Marginal distribution(s).
 #' @param rep Number of simulated datasets per design cell.
 #' @param test.rep Number of permutations in each simulated analysis.
+#' @param test.seed Optional seed. A power table is the number that decides a
+#'   sample size, so it has to reproduce; without one the engine draws from
+#'   the clock and reports a different table on every run. The caller's
+#'   random stream is restored afterwards, which matters more here than
+#'   elsewhere because `NCA::nca_power()` calls `set.seed()` inside its own
+#'   loop.
 #' @return A data frame of estimated power values with SCA direction metadata.
 #' @export
+#' @examples
+#' # Deliberately small: a reporting-grade run uses rep = 100 and
+#' # test.rep = 200 and takes minutes rather than seconds.
+#' power <- sca_power(n = c(20, 40), rep = 5, test.rep = 19, test.seed = 1)
+#' power
 sca_power <- function(
     n = c(20, 50, 100),
     effect = 0.10,
@@ -106,26 +121,67 @@ sca_power <- function(
     distribution.x = "uniform",
     distribution.y = "uniform",
     rep = 100,
-    test.rep = 200) {
+    test.rep = 200,
+    test.seed = NULL) {
   direction <- .sca_validate_direction(direction, 1L)
   corner <- sca_corner(direction)
   .sca_check_slope(slope, direction, corner)
-  result <- NCA::nca_power(
-    n = n,
-    effect = effect,
-    slope = slope,
-    ceiling = ceiling,
-    corner = corner,
-    p = p,
-    distribution.x = distribution.x,
-    distribution.y = distribution.y,
-    rep = rep,
-    test.rep = test.rep
+
+  # Two guards, because they catch different things.
+  #
+  # The slope check above reproduces one of the engine's own preconditions so
+  # that the message can name the direction the caller actually gave, rather
+  # than the corner it was translated into. It is a convenience and it is
+  # incomplete: the engine also refuses an effect size outside (0, 1), and any
+  # later release may add more.
+  #
+  # The check below needs to know none of that. The engine announces a refusal
+  # by printing a line and returning NULL, so anything it refuses -- known to
+  # this package or not -- arrives here as NULL and is raised with the engine's
+  # own explanation attached. Until 0.5.0 that NULL was passed straight back,
+  # and the failure surfaced further downstream as sca_powerplot() complaining
+  # about missing columns, which described the symptom and not the cause.
+  # Seeded the same way sca_analysis() seeds the engine, and for the same
+  # reason. `nca_power()` draws one value off the caller's stream --
+  # `offset <- sample.int(2^24, 1)` -- and derives every replication's seed
+  # from it, so fixing the stream before the call fixes the whole simulation.
+  # Without it a power table is a different table on every run, which is the
+  # one thing a power table cannot be: it is the number that decides a sample
+  # size, and a reviewer has to be able to reproduce it.
+  #
+  # `.sca_with_seed()` restores the caller's stream afterwards. That matters
+  # more here than elsewhere: `nca_power()` calls set.seed() inside its own
+  # loop, so without the restore it would leave the session seeded from an
+  # arithmetic expression of the loop counters.
+  printed <- utils::capture.output(
+    result <- .sca_with_seed(test.seed, NCA::nca_power(
+      n = n,
+      effect = effect,
+      slope = slope,
+      ceiling = ceiling,
+      corner = corner,
+      p = p,
+      distribution.x = distribution.x,
+      distribution.y = distribution.y,
+      rep = rep,
+      test.rep = test.rep
+    ))
   )
-  if (!is.null(result)) {
-    result$direction <- direction
-    result$empty_corner <- corner
+
+  if (is.null(result)) {
+    reason <- trimws(paste(printed[nzchar(trimws(printed))], collapse = " "))
+    stop(
+      sprintf(
+        "The NCA engine refused this power design%s",
+        if (nzchar(reason)) paste0(": ", reason) else
+          " and gave no reason. Check n, effect, p and rep."
+      ),
+      call. = FALSE
+    )
   }
+
+  result$direction <- direction
+  result$empty_corner <- corner
   result
 }
 
@@ -139,6 +195,9 @@ sca_power <- function(
 #' @param line.name Legend title.
 #' @return A `ggplot` object.
 #' @export
+#' @examples
+#' power <- sca_power(n = c(20, 40), rep = 5, test.rep = 19, test.seed = 1)
+#' sca_powerplot(power)
 sca_powerplot <- function(
     df_power,
     x.variable = "n",

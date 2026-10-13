@@ -98,30 +98,6 @@
 # separates an expected empty space from the compatible region. That line is
 # what a frontier estimates; it has nothing to do with whether the reported
 # rule uses ">" or ">=".
-.sca_resolve_inequality <- function(inequality, boundary, supplied) {
-  if (!is.null(boundary)) {
-    .Deprecated(
-      new = "inequality",
-      package = "SCAtools",
-      msg = paste0(
-        "'boundary' is deprecated in SCAtools 0.4.0 and will be removed in a ",
-        "future release; use 'inequality' instead. In the condition analysis ",
-        "vocabulary a boundary is the theoretical line an empty space is ",
-        "separated by, not the strictness of a reported inequality."
-      )
-    )
-    if (isTRUE(supplied)) {
-      warning(
-        "Both 'boundary' and 'inequality' were supplied; using 'inequality'.",
-        call. = FALSE
-      )
-    } else {
-      inequality <- boundary
-    }
-  }
-  match.arg(inequality, c("strict", "inclusive"))
-}
-
 #' Convert actual values to a reporting scale
 #'
 #' @param values Numeric vector in actual units.
@@ -215,9 +191,23 @@
 
 #' Convert displayed values back to actual units
 #'
-#' Inverse of [.sca_to_scale()]. Used to place outcome levels: a request for
-#' levels every 10 percentile points has to become a set of actual outcome
-#' values before the engine can be asked for thresholds at those levels.
+#' Used to place outcome levels: a request for levels every 10 percentile
+#' points has to become a set of actual outcome values before the engine can
+#' be asked for thresholds at those levels.
+#'
+#' A partial inverse of `.sca_to_scale()`, not a true one. The two round-trip
+#' exactly on `actual`, `percentage.range`, `percentage.max` and `sd`, which
+#' are affine in the data. `percentile` is not: forward it is the empirical
+#' CDF, a step function that repeats a value across ties and jumps by 1/n
+#' between observations, and back it is [stats::quantile()], which
+#' interpolates linearly between order statistics. Neither direction can
+#' undo the other in general -- the forward map is not injective, so nothing
+#' could. A level requested at the 35th percentile of 20 observations comes
+#' back as a value whose own forward percentile is 35 only when an
+#' observation happens to sit there. This is the right behaviour for what the
+#' function is for -- a level has to become some actual value the engine can
+#' be asked about -- but it means a `percentile` threshold table must be read
+#' as the level requested, not as a level recovered from the returned value.
 #'
 #' @inheritParams .sca_to_scale
 #' @param display Numeric vector on the reporting scale.
@@ -442,8 +432,7 @@ sca_scales <- function() {
 #' @param letter `"H"` or `"L"`, the direction letter for this axis.
 #' @param convention `"absolute"` or `"directional"`.
 #' @param inequality `"strict"` or `"inclusive"`; affects the `percentile` scale
-#'   only. Renamed from `boundary` in 0.4.0.
-#' @param boundary Deprecated. Former name of `inequality`.
+#'   only.
 #' @return A numeric vector on the requested scale. Non-finite inputs return
 #'   `NA`.
 #' @export
@@ -454,12 +443,11 @@ sca_scales <- function() {
 sca_rescale <- function(values, reference, bounds = range(reference, na.rm = TRUE),
                         scale = "percentage.range", letter = c("H", "L"),
                         convention = c("absolute", "directional"),
-                        inequality = c("strict", "inclusive"),
-                        boundary = NULL) {
+                        inequality = c("strict", "inclusive")) {
   scale <- .sca_validate_scale(scale)
   letter <- match.arg(letter)
   convention <- .sca_validate_convention(convention)
-  inequality <- .sca_resolve_inequality(inequality, boundary, !missing(inequality))
+  inequality <- match.arg(inequality)
   bounds <- as.numeric(bounds)
   if (length(bounds) != 2L || anyNA(bounds)) {
     stop("'bounds' must be two finite values.", call. = FALSE)

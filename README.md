@@ -1,194 +1,151 @@
 # SCAtools
 
-`SCAtools` is an experimental R package for direction-aware **Sufficiency
-Condition Analysis (SCA)** using empty-space frontiers.
+Sufficient Condition Analysis (SCA) in R.
 
-The package keeps two ideas separate:
+## What the method is
 
-1. the logical sufficiency statement (`HH`, `LH`, `HL`, or `LL`); and
-2. the physical corner that must be empty in the original X-Y scatter plot.
+A condition is **sufficient** for an outcome when having the condition
+guarantees the outcome. In data, a sufficiency claim makes a definite
+prediction: the cases that would contradict it do not occur. Plot the condition
+X against the outcome Y and those cases sit in one corner of the scatter plot.
+"High X is sufficient for high Y" predicts that the lower-right corner -- high X
+with low Y -- is empty.
 
-| SCA number | Direction | Sufficiency statement | Physical empty corner |
-|---:|:---:|---|---:|
-| 1 | HH | High X sufficient for High Y | 4 (lower-right) |
-| 2 | LH | Low X sufficient for High Y | 3 (lower-left) |
-| 3 | HL | High X sufficient for Low Y | 2 (upper-right) |
-| 4 | LL | Low X sufficient for Low Y | 1 (upper-left) |
+Sufficient Condition Analysis estimates that empty corner. It fits the boundary
+of the empty space, measures how large the empty space is, tests whether it is
+larger than random pairing of X and Y would produce, and turns the boundary
+into thresholds: the level of X that guarantees each level of Y.
 
-The mapping follows contraposition:
+A sufficiency claim can run in four directions, and each predicts a different
+empty corner:
 
-```text
-X sufficient for Y  <=>  not-Y necessary for not-X
-```
+| Direction | Claim | Empty corner |
+|:---:|---|---|
+| `HH` | high X is sufficient for high Y | lower-right |
+| `LH` | low X is sufficient for high Y | lower-left |
+| `HL` | high X is sufficient for low Y | upper-right |
+| `LL` | low X is sufficient for low Y | upper-left |
 
-For example, `High X -> High Y` requires the lower-right corner (High X, Low
-Y) to be empty. It is equivalent to Low X being necessary for Low Y.
+You state the claim; the package finds the corner.
 
-Source and issue tracker:
-<https://github.com/youngchanresearcher/SCAtools>
+## What it is for
+
+- **Finding the level that guarantees an outcome.** The threshold table answers
+  "how much X is enough for Y to reach this level?" for every outcome level, in
+  the units of the data or as percentages, percentiles or standard deviations.
+- **Seeing what regression does not show.** A regression slope describes how
+  the outcome moves *on average*. A condition can leave the average almost
+  unchanged and still rule out low outcomes completely. SCA measures that
+  second kind of effect, and `sca_compare()` reports both side by side, so a
+  study can say which of the two its data show.
+- **Comparing conditions.** Several conditions can be analysed in one call,
+  each with its own direction, and reported in one table.
+- **Planning a study.** `sca_power()` estimates how many observations a
+  sufficiency effect of a given size needs.
 
 ## Installation
 
-Install the released NCA engine and then the local SCAtools source package:
-
 ```r
-install.packages(c("NCA", "ggplot2"))
-install.packages("SCAtools_0.4.3.tar.gz", repos = NULL, type = "source")
+install.packages("SCAtools")
 ```
 
-## Basic use
+## How to use it
+
+The package includes four simulated datasets that show the four ways a
+regression effect and a sufficiency effect can combine.
 
 ```r
 library(SCAtools)
 
-set.seed(42)
-dat <- sca_random(
-  n = 100,
-  intercepts = 0,
-  slopes = 1,
-  direction = "HH"
-)
+# Configuration II: a flat regression slope, but an empty lower-right corner
+dat <- subset(sca_four_configurations, configuration == "II")
 
-fit <- sca_analysis(
-  dat,
-  x = "X",
-  y = "Y",
-  direction = "HH",
-  ceilings = c("ce_fdh", "cr_fdh"),
-  test.rep = 1000
-)
+# 1. Fit the claim "high X is sufficient for high Y"
+fit <- sca_analysis(dat, x = "X", y = "Y", direction = "HH",
+                    scope = c(0, 100, 0, 100), test.rep = 1000)
+fit                     # summary, with every setting the result rests on
 
-fit
-sca_table(fit)
-sca_thresholds(fit, ceiling = "ce_fdh", inequality = "strict")
-sca_plot(fit)
-sca_test_plot(fit, ceiling = "ce_fdh")
+# 2. Read the results
+sca_table(fit)          # effect size, p value and support for each condition
+sca_thresholds(fit)     # the X level that guarantees each Y level
+sca_plot(fit)           # the scatter plot, the frontier and the empty corner
 
-# Optional diagnostics
-sca_normalize(dat)
-sca_outliers(dat, "X", "Y", direction = "HH")
+# 3. Set it beside regression
+sca_compare(fit)        # here: slope near zero, large sufficiency effect
 ```
 
-For several X conditions, `direction` can be a single value or one value per
-condition. All directions in one model must refer to the same outcome level:
+`sca()` runs the same analysis with a permutation test and draws the plot in
+one step:
 
 ```r
-fit <- sca_analysis(
-  my_data,
-  x = c("resources", "constraints"),
-  y = "performance",
-  direction = c("HH", "LH")
-)
+sca(dat, x = "X", y = "Y", direction = "HH")
 ```
 
-## Important interpretation limits
+### Checking the result
 
-- `direction` is logical; `empty_corner` is geometric. They are deliberately
-  not given the same number.
-- The effect size is the fitted empty-zone area divided by the stated X-Y
-  scope. It is scope- and frontier-dependent.
-- A permutation p-value evaluates whether an empty zone this large is unusual
-  after breaking the X-Y pairing. It does not prove a causal mechanism.
-- Observational absence of counterexamples does not by itself establish
-  deterministic sufficiency. Temporal order, design, measurement quality,
-  scope, and out-of-sample validation still matter.
-- A fitted threshold is best reported as an empirical frontier rule, not as a
-  causal guarantee, unless the research design justifies that stronger claim.
-- For continuous variables, strict inequalities are the exact contrapositive
-  at the frontier. Inclusive inequalities are available only as an explicit
-  reporting convention.
-- A row marked `no_threshold` means no attainable condition value reaches that
-  outcome level, and `always_satisfied` means every observation in scope
-  already lies on the required side. These are the sufficiency readings of the
-  engine's `NN` and `NA` markers, whose meanings invert under contraposition.
+| Function | What it shows |
+|---|---|
+| `sca_test_plot()` | the permutation distribution beside the observed effect size |
+| `sca_scope()` | the scope each effect size was divided by |
+| `sca_scope_sensitivity()` | how the effect size changes with the scope |
+| `sca_resample()` | how much the effect size varies across subsamples |
+| `sca_outliers()` | which observations hold up the frontier |
+| `sca_locationshift()` | whether the frontier is a level shift or a threshold |
+| `sca_magnitude()` | conventional bands for an effect size |
 
-## Reporting scales
+## Reading the results
 
-Threshold tables can be reported in actual units, as a percentage of the range
-or of the maximum, as percentiles, or in standard deviations. Because actual
-values are retained, a fitted model can be re-expressed without refitting:
+- **Effect size** is the empty area as a share of the scope, from 0 (no empty
+  corner) to 1. `effect_size_null` beside it is the value random pairing alone
+  produces with the same data.
+- **p value** comes from a permutation test that breaks the pairing of X and Y.
+- **Thresholds** read as rules such as `X > 38.9 => Y > 30`. `no_threshold`
+  marks an outcome level that no value of X reaches; `always_satisfied` marks
+  one that every observation in scope already meets.
+- **Scales.** A fitted model can be re-expressed without refitting:
 
-```r
-fit <- sca_analysis(dat, "X", "Y", direction = "LL", threshold.x = "percentile")
+  ```r
+  sca_thresholds(fit, scale = "actual")      # original units
+  sca_thresholds(fit, scale = "percentile")  # percentiles
+  sca_thresholds(fit, scale = "sd")          # standard deviations
+  ```
 
-sca_thresholds(fit)                        # percentiles
-sca_thresholds(fit, scale = "actual")      # original units
-sca_thresholds(fit, scale = "sd")          # standard deviations
-```
+  Under the default `absolute` convention 0 is the low end of every axis and
+  the inequality carries the direction; under `directional` a low-level axis is
+  mirrored so that every rule reads as "more of the sufficient condition".
+  `sca_scales()` lists the options.
 
-Two conventions are available, and they differ only for low-level directions:
+## Good practice
 
-| Convention | `HH` reads | `LL` reads |
-|---|---|---|
-| `absolute` (default) | `X > 70% => Y > 80%` | `X < 30% => Y < 20%` |
-| `directional` | `X > 70% => Y > 80%` | `X > 70% => Y > 80%` |
+- **Choose the direction from theory, then plot the data.** Each direction
+  predicts a single empty corner, which assumes the relationship is monotone.
+- **Report the scope.** The effect size is an area divided by the scope, so
+  state whether the scope is the observed range or a theoretical one, and why.
+  `sca_scope()` and the printed `Settings` block record it.
+- **Report the frontier technique and the number of permutations.** CE-FDH
+  (`"ce_fdh"`) follows the data as a step function; CR-FDH (`"cr_fdh"`) fits a
+  straight line through it. 1000 or more permutations are usual.
+- **Fix a relevance threshold in advance** with `relevance =` if a minimum
+  effect size matters for the conclusion.
+- **Report thresholds as empirical rules** for the population and design
+  studied; how far they generalise depends on the design.
 
-Under `absolute`, 0 sits at the low end of every axis and the inequality
-carries the direction, so numbers are directly comparable across directions.
-Under `directional`, 0 sits at the least sufficient end: a low-level axis is
-mirrored, the inequality flips with it, and every rule reads as "more of the
-sufficient thing". `sca_scales()` lists what is available.
+An ordinary least-squares or median regression line can be added with
+`reference = "ols"` or `"qr"`. It is drawn for comparison and reported by
+`sca_reference()`; it is not part of the sufficiency analysis.
 
-## Implementation and attribution
+## Learn more
 
-`SCAtools` delegates frontier estimation, effect-size calculation, threshold
-estimation, permutation tests, random-data generation, and power analysis to
-NCA 5.0.2 or later. The wrapper maps sufficiency directions to NCA's physical
-corners and provides SCA-specific output and graphics. This avoids maintaining
-a divergent copy of the statistical engine.
+- `?SCAtools` describes the method and gives its references.
+- `citation("SCAtools")` gives the references to cite.
+- `system.file("docs", "sufficiency-logic.md", package = "SCAtools")` derives
+  the four directions step by step, and
+  `system.file("examples", "four-directions.R", package = "SCAtools")` runs
+  them.
+- The NSCA package uses SCAtools to test conditions that are both necessary
+  and sufficient.
 
-Scale conversion is the one place where `SCAtools` does not delegate.
-Thresholds are always requested from the engine in actual units and converted
-here. The engine measures its percentage scales from the low end of the axis
-but mirrors its percentile scale according to the physical empty corner, and
-its out-of-range threshold cells use a third convention again. Because the
-physical corner does not correspond to the logical sufficiency direction,
-inheriting those conventions produced tables that could not be read
-consistently. Doing the conversion here means one stated convention governs
-both axes in all four directions.
-
-NCA is distributed under GPL-3-or-later and is authored by Jan Dul and Govert
-Buijs. Cite the underlying method and software as appropriate, including:
-
-- Dul, J. (2016). Necessary Condition Analysis (NCA): Logic and methodology of
-  “necessary but not sufficient” causality. *Organizational Research Methods,
-  19*(1), 10-52. https://doi.org/10.1177/1094428115584005
-
-The installed package also includes `docs/sufficiency-logic.md` and
-`examples/four-directions.R` for a fuller derivation and a runnable example.
-
-`citation("SCAtools")` returns both this package and the NCA method article.
-
-## The reference line: OLS is not a frontier
-
-`reference = "ols"` draws an ordinary least-squares regression of the outcome
-on the condition -- the line `lm(y ~ x)` returns -- beside the frontier, for
-comparison only:
-
-```r
-fit <- sca_analysis(
-  dat, x = "X", y = "Y", direction = "HH",
-  ceilings = "ce_fdh",
-  reference = "ols"
-)
-
-sca_reference(fit)   # intercept, slope, R-squared; no effect size
-```
-
-A regression line describes how the expected outcome moves with the condition.
-A sufficiency frontier describes which condition-outcome combinations are
-absent. A frontier is fixed by the most extreme observations, a regression line
-by the central tendency, so the two are different quantities and are reported
-separately: the reference line has no empty zone, no effect size, no
-permutation p value and no sufficiency threshold, and never appears as a row of
-`sca_table()`.
-
-Before 0.4.1 `"ols"` was the first entry of the default `ceilings`. It is not a
-default any more. Passing it in `ceilings` still works and moves it here with a
-warning; passing it alone is an error, because no empty space is left to
-estimate.
-
----
+Source and issue tracker: <https://github.com/youngchanresearcher/SCAtools>
 
 The Traditional Chinese version of this README is installed with the package:
 

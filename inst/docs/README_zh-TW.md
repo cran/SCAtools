@@ -1,176 +1,127 @@
-# SCAtools：充分條件分析 R 套件
+# SCAtools：充分條件分析
 
-`SCAtools` 是一個實驗版 R 套件，用 empty-space frontier 分析方向明確的
-充分條件敘述。它刻意區分：
+在 R 中進行充分條件分析（Sufficient Condition Analysis, SCA）。
 
-1. **充分條件的邏輯方向**：HH、LH、HL、LL；
-2. **原始散點圖實際為空的位置**：corner 1、2、3、4。
+## 這個方法是什麼
 
-| SCA 編號 | 方向 | 充分條件敘述 | 實際空白 corner |
-|---:|:---:|---|---:|
-| 1 | HH | High X sufficient for High Y | 4（右下） |
-| 2 | LH | Low X sufficient for High Y | 3（左下） |
-| 3 | HL | High X sufficient for Low Y | 2（右上） |
-| 4 | LL | Low X sufficient for Low Y | 1（左上） |
+當一個條件出現就保證結果出現，這個條件就是結果的**充分條件**。放到資料上，
+充分條件的主張會做出明確的預測：與它矛盾的個案不會出現。把條件 X 對結果 Y
+畫成散佈圖，這些矛盾個案落在圖的某一個角落。例如「高 X 是高 Y 的充分條件」
+預測右下角（高 X 而低 Y）是空的。
 
-因此，`direction = "HH"` 不會把圖上的 corner 4 改叫 corner 1；輸出會同時
-顯示「SCA logical direction 1」和「physical empty corner 4」。
+充分條件分析估計這個空白角落：配適空白區的邊界、計算空白區有多大、檢定它是否
+大於 X 與 Y 隨機配對時會出現的大小，並把邊界轉成門檻——每一個 Y 的水準需要多少
+X 才能保證達到。
+
+充分條件的主張有四個方向，各自預測不同的空白角落：
+
+| 方向 | 主張 | 空白角落 |
+|:---:|---|---|
+| `HH` | 高 X 是高 Y 的充分條件 | 右下 |
+| `LH` | 低 X 是高 Y 的充分條件 | 左下 |
+| `HL` | 高 X 是低 Y 的充分條件 | 右上 |
+| `LL` | 低 X 是低 Y 的充分條件 | 左上 |
+
+你只要說明主張的方向，套件會找到對應的角落。
+
+## 可以用來做什麼
+
+- **找出保證結果的水準。** 門檻表回答「X 要多少，Y 才保證達到這個水準？」，
+  每個結果水準各給一個答案，可以用原始單位、百分比、百分位或標準差呈現。
+- **看見迴歸看不到的效果。** 迴歸斜率描述結果**平均**如何隨條件變動。一個條件
+  可能幾乎不改變平均，卻完全排除了低結果。充分條件分析衡量的是第二種效果，
+  `sca_compare()` 把兩者並列，讓研究清楚說明資料呈現的是哪一種。
+- **比較多個條件。** 一次呼叫可以分析多個條件，各有自己的方向，結果放在同一張表。
+- **規劃研究。** `sca_power()` 估計要偵測某個大小的充分效果需要多少觀測值。
 
 ## 安裝
 
-原始碼與問題回報：<https://github.com/youngchanresearcher/SCAtools>
+```r
+install.packages("SCAtools")
+```
+
+## 怎麼使用
+
+套件附有四組模擬資料，示範迴歸效果與充分效果可能組合出的四種情形。
 
 ```r
-install.packages(c("NCA", "ggplot2"))
-install.packages("SCAtools_0.4.3.tar.gz", repos = NULL, type = "source")
 library(SCAtools)
+
+# 組態 II：迴歸斜率幾乎是平的，但右下角是空的
+dat <- subset(sca_four_configurations, configuration == "II")
+
+# 1. 配適「高 X 是高 Y 的充分條件」
+fit <- sca_analysis(dat, x = "X", y = "Y", direction = "HH",
+                    scope = c(0, 100, 0, 100), test.rep = 1000)
+fit                     # 摘要，並列出結果所依據的每一項設定
+
+# 2. 讀取結果
+sca_table(fit)          # 每個條件的效果量、p 值與支持判定
+sca_thresholds(fit)     # 保證每個 Y 水準所需的 X 水準
+sca_plot(fit)           # 散佈圖、邊界線與空白角落
+
+# 3. 與迴歸並列
+sca_compare(fit)        # 這組資料：斜率接近 0，充分效果很大
 ```
 
-## 最小範例
+`sca()` 一步完成同樣的分析，附置換檢定並畫圖：
 
 ```r
-set.seed(42)
-dat <- sca_random(
-  n = 100,
-  intercepts = 0,
-  slopes = 1,
-  direction = "HH"
-)
-
-fit <- sca_analysis(
-  data = dat,
-  x = "X",
-  y = "Y",
-  direction = "HH",
-  ceilings = c("ce_fdh", "cr_fdh"),
-  threshold.x = "percentile",
-  threshold.y = "percentage.range",
-  test.rep = 1000
-)
-
-fit
-sca_table(fit)
-sca_thresholds(fit, ceiling = "ce_fdh", inequality = "strict")
-
-# 同一個模型換一個尺度呈現，不需要重新配適
-sca_thresholds(fit, scale = "actual")
-sca_thresholds(fit, scale = "sd")
-sca_plot(fit)
-sca_test_plot(fit, ceiling = "ce_fdh")
-
-# 選用：標準化與 influential-observation diagnostics
-sca_normalize(dat)
-sca_outliers(dat, "X", "Y", direction = "HH")
+sca(dat, x = "X", y = "Y", direction = "HH")
 ```
 
-## 門檻表的尺度與慣例
+### 檢查結果
 
-門檻表可以用真實數值、範圍百分比、最大值百分比、百分位或標準差呈現。真實數值一律
-保留在 `sufficiency_threshold_actual` 與 `outcome_level_actual` 兩欄，所以換尺度不必
-重新配適模型。`sca_scales()` 會列出所有可用的尺度。
+| 函數 | 用途 |
+|---|---|
+| `sca_test_plot()` | 置換分配與觀測到的效果量 |
+| `sca_scope()` | 每個效果量所除的範圍（scope） |
+| `sca_scope_sensitivity()` | 範圍改變時效果量如何變化 |
+| `sca_resample()` | 效果量在子樣本間的變動 |
+| `sca_outliers()` | 哪些觀測值撐起邊界 |
+| `sca_locationshift()` | 邊界是整體平移還是門檻 |
+| `sca_magnitude()` | 效果量的慣用等級 |
 
-有兩種報告慣例，差別只出現在含 `L` 的方向：
+## 怎麼讀結果
 
-| 慣例 | `HH` 讀作 | `LL` 讀作 |
-|---|---|---|
-| `absolute`（預設） | `X > 70% => Y > 80%` | `X < 30% => Y < 20%` |
-| `directional` | `X > 70% => Y > 80%` | `X > 70% => Y > 80%` |
+- **效果量**是空白面積佔範圍的比例，從 0（沒有空白角落）到 1。旁邊的
+  `effect_size_null` 是同一份資料在隨機配對下會得到的值。
+- **p 值**來自打亂 X 與 Y 配對的置換檢定。
+- **門檻**寫成規則，例如 `X > 38.9 => Y > 30`。`no_threshold` 表示沒有任何 X
+  能達到該結果水準；`always_satisfied` 表示範圍內每個觀測值都已經達到。
+- **尺度。** 配適好的模型不必重新配適就能換尺度呈現：
 
-`absolute` 讓 0 永遠落在軸的低端，方向完全由不等號承載，因此不同方向的數字可以直接
-比較。`directional` 讓 0 落在「最不充分」的一端：`L` 方向的軸會鏡射，不等號跟著翻轉，
-四個方向都讀成「愈多愈充分」。
+  ```r
+  sca_thresholds(fit, scale = "actual")      # 原始單位
+  sca_thresholds(fit, scale = "percentile")  # 百分位
+  sca_thresholds(fit, scale = "sd")          # 標準差
+  ```
 
-## 為什麼尺度轉換不交給 NCA
+  預設的 `absolute` 慣例中，每條軸的 0 都在低端，由不等號表示方向；`directional`
+  慣例會把低水準的軸鏡像翻轉，讓每條規則都讀成「充分條件越多」。`sca_scales()`
+  列出所有選項。
 
-NCA 的百分比一律從軸的低端量，但百分位卻依**實體空區角落**鏡射，而超出範圍的邊界儲
-存格又用第三套慣例。由於實體角落與邏輯充分性方向並不對應，直接沿用會得到無法一致
-閱讀的表格。因此 `SCAtools` 一律向引擎索取真實數值，所有尺度轉換都在本套件內完成。
+## 良好做法
 
-同樣的道理適用於 `NN` 與 `NA` 標記——它們的意義在對位換質下會顛倒：
+- **先依理論決定方向，再畫圖檢查資料。** 每個方向預測單一個空白角落，前提是關係
+  是單調的。
+- **報告範圍（scope）。** 效果量是面積除以範圍，請說明使用的是觀測範圍還是理論
+  範圍，以及理由。`sca_scope()` 和輸出的 `Settings` 區塊會記錄這項設定。
+- **報告邊界估計方法與置換次數。** CE-FDH（`"ce_fdh"`）以階梯狀貼著資料；
+  CR-FDH（`"cr_fdh"`）以一條直線穿過它。置換次數通常用 1000 次以上。
+- **事先設定實務門檻。** 如果結論需要效果量達到某個最低值，用 `relevance =` 事先
+  指定。
+- **把門檻當作經驗規則報告**，適用於所研究的母體與設計；能推論到多遠取決於研究設計。
 
-| 引擎儲存格 | 必要性讀法 | 充分性讀法 | `status` |
-|---|---|---|---|
-| `NN` | 沒有最低要求 | 不存在可達成的門檻 | `no_threshold` |
-| `NA` | 要求超出範圍 | 所有觀測都已滿足 | `always_satisfied` |
+可以用 `reference = "ols"` 或 `"qr"` 加上一條最小平方法或中位數迴歸線作為對照，
+由 `sca_reference()` 報告；它不屬於充分條件分析的一部分。
 
-## 四種方向
+## 延伸閱讀
 
-```r
-sca_corner_map()
+- `?SCAtools`：方法說明與參考文獻。
+- `citation("SCAtools")`：引用格式。
+- `system.file("docs", "sufficiency-logic.md", package = "SCAtools")` 逐步推導四個
+  方向；`system.file("examples", "four-directions.R", package = "SCAtools")` 實際執行。
+- NSCA 套件以 SCAtools 為基礎，檢定同時必要且充分的條件。
 
-# HH：High X -> High Y；右下 corner 4 應為空
-fit_hh <- sca_analysis(dat, "X", "Y", direction = "HH")
-
-# HL：High X -> Low Y；右上 corner 2 應為空
-fit_hl <- sca_analysis(dat, "X", "Y", direction = "HL")
-```
-
-若同一次分析有多個 X，可以對每個 X 指定方向，但所有敘述必須分析同一個
-Y 方向。例如 `c("HH", "LH")` 都以 High Y 為結果，可以同時分析；
-`c("HH", "HL")` 一個分析 High Y、一個分析 Low Y，必須拆成兩個模型。
-
-## 如何理解 threshold table
-
-`sca_thresholds()` 會同時保留 NCA 表格使用的顯示尺度，以及引擎內部的原始
-尺度門檻。這很重要，因為分析下方 corners 時，NCA 會按照「低 Y」的方向
-重新排列百分比；直接把畫面百分比當成原始 Y 值會得到錯誤規則。SCA 表會
-依原始 Y 尺度重新排序，同時保留引擎顯示值供追溯。
-
-預設 `inequality = "strict"` 使用邏輯補集所要求的嚴格不等式。例如 HH：
-
-```text
-X > threshold  =>  Y > outcome level
-```
-
-只有當量尺或校準方式明確把邊界納入 high/low set 時，才使用
-`inequality = "inclusive"`。
-
-## 必須保留的研究限制
-
-- effect size 是指定 X–Y scope 內的空白區比例，會受 scope 與 frontier
-  technique 影響。
-- permutation p-value 檢驗打亂 X–Y 配對後，是否很少出現同樣大的空白區；
-  它不是因果充分性的證明。
-- 樣本內沒有反例，不等於母體中不存在反例。
-- 因果方向、時間先後、測量誤差、離群值、共同原因與樣本外驗證仍須另外處理。
-- 因此，沒有強因果設計時，建議把結果稱為 **empirical sufficiency frontier
-  pattern**，而不是無條件的 causal guarantee。
-
-## 套件結構與授權
-
-`SCAtools` 使用 NCA 5.0.2 或更新版本作為計算引擎，負責 frontier、effect
-size、permutation test、模擬與 power；本套件負責正確的 SCA 方向映射、輸出、
-threshold rules 與圖形。這樣可避免複製後與官方 NCA 演算法逐漸分歧。
-
-NCA 與本套件皆採 GPL-3-or-later。
-
-安裝後另附 `docs/sufficiency-logic.md`（完整邏輯推導）與
-`examples/four-directions.R`（可執行範例）。
-
-`citation("SCAtools")` 會同時回傳本套件與 NCA 方法論文兩筆引用資料。
-
-## 參照線：OLS 不是 frontier
-
-`reference = "ols"` 會在 frontier 旁邊多畫一條 outcome 對 condition 的最小平方
-迴歸線，也就是 `lm(y ~ x)` 那條線，純粹用來對照：
-
-```r
-fit <- sca_analysis(
-  dat, x = "X", y = "Y", direction = "HH",
-  ceilings = "ce_fdh",
-  reference = "ols"
-)
-
-sca_reference(fit)   # 截距、斜率、R 平方；沒有 effect size
-```
-
-迴歸線講的是「條件變動時，結果的期望值怎麼跟著動」；sufficiency frontier 講的是
-「哪些條件—結果組合不會出現」。frontier 由最極端的觀察值決定，迴歸線由集中趨勢
-決定，兩者是不同的量，所以分開報告：參照線沒有空區、沒有 effect size、沒有
-permutation p 值、也沒有 sufficiency threshold，不會出現在 `sca_table()` 的任何
-一列。
-
-0.4.1 之前 `"ols"` 是預設 `ceilings` 的第一個元素，現在不再是預設。放在
-`ceilings` 裡仍然可用，只會警告並移到 `reference`；單獨只給 `"ols"` 會報錯，因為
-沒有任何空區可以估計。
-
+原始碼與問題回報：<https://github.com/youngchanresearcher/SCAtools>

@@ -33,3 +33,43 @@ test_that("sca_power() refuses a slope its direction cannot use", {
   expect_error(SCAtools:::.sca_check_slope("a", "HH", 4L), "finite numbers")
 })
 
+
+
+# ---- sca_power() is reproducible ---------------------------------------
+
+test_that("test.seed makes a power table reproduce", {
+  # A power table is the number that decides a sample size, so it has to
+  # reproduce. NCA::nca_power() draws one value off the caller's stream and
+  # derives every replication's seed from it, so fixing the stream before the
+  # call fixes the whole simulation -- the same mechanism sca_analysis() uses.
+  once <- suppressWarnings(
+    sca_power(n = 30, effect = 0.2, rep = 3, test.rep = 20, test.seed = 1)
+  )
+  twice <- suppressWarnings(
+    sca_power(n = 30, effect = 0.2, rep = 3, test.rep = 20, test.seed = 1)
+  )
+  expect_equal(once, twice)
+})
+
+test_that("a different seed gives a different table", {
+  a <- suppressWarnings(
+    sca_power(n = 30, effect = 0.2, rep = 3, test.rep = 20, test.seed = 1)
+  )
+  b <- suppressWarnings(
+    sca_power(n = 30, effect = 0.2, rep = 3, test.rep = 20, test.seed = 2)
+  )
+  expect_false(isTRUE(all.equal(a, b)))
+})
+
+test_that("sca_power() leaves the caller's random stream alone", {
+  # It matters more here than elsewhere: nca_power() calls set.seed() inside
+  # its own loop, so without the restore the session would be left seeded from
+  # an arithmetic expression of the loop counters.
+  set.seed(77)
+  before <- runif(1)
+  set.seed(77)
+  invisible(suppressWarnings(
+    sca_power(n = 30, effect = 0.2, rep = 2, test.rep = 20, test.seed = 5)
+  ))
+  expect_equal(before, runif(1))
+})

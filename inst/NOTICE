@@ -1,4 +1,4 @@
-SCAtools 0.1.0
+SCAtools 0.5.0
 
 This package provides a sufficiency-oriented interface to the NCA R package.
 It calls NCA as an imported dependency and does not rename NCA output as new

@@ -70,14 +70,9 @@ equality requires an additional convention about calibration or measurement.
 For this reason `sca_thresholds()` defaults to `inequality = "strict"`; the
 inclusive option is explicit rather than automatic.
 
-(That argument was called `boundary` before 0.4.0. The name was needed for the
-theoretical line an expected empty space is separated by, which is what a
-*frontier* estimates, so the argument governing the strictness of a reported
-inequality is now `inequality`.)
-
 ## 4. What the computation establishes
 
-The NCA engine estimates a frontier and an empty-zone effect size. With the
+The NCA engine estimates a frontier and an empty-space effect size. With the
 correct corner mapping, the same geometry can be described through its
 logically equivalent sufficiency statement. This establishes a sample-level
 empty-space pattern under a specified scope and estimator.

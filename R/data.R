@@ -1,0 +1,77 @@
+#' Four comparative demonstrations of mean effect against sufficiency effect
+#'
+#' The simulated datasets behind the four configurations of Chan (in press),
+#' *Mean Effects Are Not Sufficiency Effects: How Sufficient Condition Analysis
+#' Complements Regression Analysis*. Each holds 500 cases on a theoretical scope of
+#' 0 to 100 on both axes, and each was built so that one of the four readings
+#' of an X-Y relationship holds.
+#'
+#' @section Why these four:
+#' A regression coefficient and a sufficiency effect size answer different
+#' questions, and neither implies the other. These datasets make the four
+#' possible combinations concrete, in the paper's own numbering, which runs
+#' from weakest to strongest:
+#'
+#' \describe{
+#'   \item{`"I"`}{Neither focal effect. No slope and no empty corner.}
+#'   \item{`"II"`}{Sufficiency-dominant. A flat slope with a largely empty
+#'   corner: beyond some level of X the low-Y cases stop occurring. **A
+#'   regression-only design reports this as configuration I** -- both have a
+#'   flat slope -- which is the point the four demonstrations exist to make.}
+#'   \item{`"III"`}{Mean-dominant. A slope with counterexamples still present:
+#'   X raises the expected outcome without being enough for it.}
+#'   \item{`"IV"`}{Both. A slope and an empty corner. Two findings about one
+#'   relationship, not one finding stated twice.}
+#' }
+#'
+#' @section The scope these numbers assume:
+#' The four configurations were simulated on a 0-100 box on both axes, and
+#' every effect size documented for them is an area over that box. Pass it to
+#' reproduce them:
+#'
+#' ```
+#' fit <- sca_analysis(subset(sca_four_configurations, configuration == "IV"),
+#'                     x = "X", y = "Y", direction = "HH",
+#'                     scope = c(0, 100, 0, 100),
+#'                     ceilings = c("ce_fdh", "cr_fdh"),
+#'                     test.rep = 5000, test.seed = 1)
+#' sca_compare(fit)
+#' ```
+#'
+#' Fitting on the observed range instead gives materially smaller effect sizes
+#' for the same data. Neither number is a fault in the other, and neither kind
+#' of scope is the correct one: they are answers to different questions, and
+#' `NCA::nca_analysis()` itself defaults to the observed range. What the two
+#' numbers show is that the denominator is half of the statistic, which is why
+#' [sca_analysis()] records both the scope it was given and the scope it used,
+#' and why [sca_scope()] reports them side by side.
+#'
+#' @format A data frame with 2000 rows and 3 columns:
+#' \describe{
+#'   \item{configuration}{`"I"`, `"II"`, `"III"` or `"IV"`.}
+#'   \item{X}{The condition, on a theoretical scope of 0 to 100.}
+#'   \item{Y}{The outcome, on a theoretical scope of 0 to 100.}
+#' }
+#' @source Simulated for the four comparative demonstrations. The same data is
+#'   shipped as plain text at
+#'   `system.file("extdata", "sca_four_configurations.csv", package = "SCAtools")`,
+#'   so it can be read without R. The original
+#'   per-configuration CSV files and a base-R reproduction script, which
+#'   re-implements the CE-FDH frontier, the effect size and the permutation
+#'   test from their definitions rather than calling this package, accompany
+#'   the paper.
+#' @references
+#' Chan, Y. (in press). *Mean Effects Are Not Sufficiency Effects: How
+#' Sufficient Condition Analysis Complements Regression Analysis*.
+#' University of Leeds.
+#' @seealso [sca_compare()], [sca_locationshift()]
+#' @examples
+#' str(sca_four_configurations)
+#' table(sca_four_configurations$configuration)
+#'
+#' # The two that a regression cannot tell apart
+#' flat <- subset(sca_four_configurations, configuration %in% c("I", "II"))
+#' vapply(split(flat, flat$configuration),
+#'        function(d) unname(stats::coef(stats::lm(Y ~ X, d))[[2L]]),
+#'        numeric(1L))
+"sca_four_configurations"

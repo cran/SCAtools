@@ -83,19 +83,18 @@ test_that("the deprecated bottleneck arguments still work and warn", {
     X = seq(0, 1, length.out = 12),
     Y = seq(0, 1, length.out = 12)
   )
-  # One warning is raised per deprecated argument, so both have to be caught;
-  # a single expect_warning() consumes only the first and lets the other
-  # surface as an unexpected warning.
-  expect_warning(
-    expect_warning(
-      fit <- sca_analysis(
-        dat, "X", "Y", direction = "HH", ceilings = "ce_fdh",
-        bottleneck.x = "actual", bottleneck.y = "actual", steps = 4
-      ),
-      "'bottleneck\\.x' is deprecated"
-    ),
-    "'bottleneck\\.y' is deprecated"
+  # Removed in 0.5.0. They were deprecated aliases for threshold.x and
+  # threshold.y, and the retirement policy is now that an old name stops
+  # working rather than warning and carrying on. Nothing intercepts an argument
+  # that is no longer in the signature, so R's own message is what a caller
+  # sees; the mapping is documented in sca_legacy_names().
+  expect_error(
+    sca_analysis(dat, "X", "Y", direction = "HH", ceilings = "ce_fdh",
+                 bottleneck.x = "actual", bottleneck.y = "actual", steps = 4),
+    "unused argument"
   )
+  fit <- sca_analysis(dat, "X", "Y", direction = "HH", ceilings = "ce_fdh",
+                      threshold.x = "actual", threshold.y = "actual", steps = 4)
   expect_equal(sca_thresholds(fit)$condition_scale[[1L]], "actual")
 })
 
@@ -262,28 +261,23 @@ test_that("retired names still work and say so", {
                legacy$sufficiency_threshold_actual)
   expect_false("condition_threshold" %in% names(sca_thresholds(fit)))
 
-  # The retired 'boundary' argument still selects the inclusive form.
+  # The retired 'boundary' argument was removed in 0.5.0; 'inequality' is the
+  # only spelling. The two forms still differ, which is what the argument was
+  # for.
   strict <- sca_thresholds(fit, inequality = "strict")
   inclusive <- sca_thresholds(fit, inequality = "inclusive")
-  got <- conditions_of(sca_thresholds(fit, boundary = "inclusive"))
-  expect_length(got$warnings, 1L)
-  expect_true(is.na(got$error))
-  expect_equal(got$value$rule, inclusive$rule)
   expect_false(identical(strict$condition_operator[[1L]],
                          inclusive$condition_operator[[1L]]))
+  expect_error(sca_thresholds(fit, boundary = "inclusive"), "unused argument")
 
-  # Supplying both keeps the new argument and warns twice.
-  both <- conditions_of(
-    sca_thresholds(fit, inequality = "strict", boundary = "inclusive")
-  )
-  expect_length(both$warnings, 2L)
-  expect_true(any(grepl("deprecated", both$warnings)))
-  expect_true(any(grepl("Both", both$warnings)))
-  expect_equal(both$value$rule, strict$rule)
-
-  # sca_extract() warns about the retired name, then explains why a threshold
-  # column cannot be returned one value at a time.
+  # sca_extract() now refuses a retired name outright and says what replaced
+  # it. Until 0.5.0 it promised to accept retired names "with a warning", but
+  # all three of them are threshold-table columns, defined per outcome level,
+  # so there was no single value to return: the call warned that the name had
+  # been renamed and then failed with a different message about threshold
+  # columns. One clear error beats a warning followed by an unrelated error.
   extracted <- conditions_of(sca_extract(fit, param = "condition_threshold"))
-  expect_true(any(grepl("renamed", extracted$warnings)))
-  expect_match(extracted$error, "column of sca_thresholds")
+  expect_length(extracted$warnings, 0L)
+  expect_match(extracted$error, "renamed to 'sufficiency_threshold'")
+  expect_match(extracted$error, "legacy = TRUE")
 })
